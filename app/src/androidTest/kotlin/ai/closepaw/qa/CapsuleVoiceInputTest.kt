@@ -37,7 +37,7 @@ import org.junit.runner.RunWith
 // ---------------------------------------------------------------------------
 // Test fixtures — fake recognizer + factory + deps. These are the entire reason
 // these tests exist as a separate class from CapsuleInputTest: never touch the
-// real AndroidRecognizerFactory, never start a SpeechRecognizer session.
+// real ChatGptRecognizerFactory, never record or upload audio.
 // ---------------------------------------------------------------------------
 
 private class FakeRecognizer : Recognizer {
@@ -246,6 +246,21 @@ class CapsuleVoiceInputTest {
             "expected user keystroke 'x' to be preserved, got '$finalText'",
             finalText.contains("x"),
         )
+    }
+
+    @Test fun typing_during_transcription_cancels_upload_and_keeps_edit() {
+        val factory = FakeRecognizerFactory(available = true)
+        val deps = FakeVoiceMicDeps(factory = factory, permissionGranted = true)
+        compose.setContent { Host(deps = deps) }
+        compose.onNodeWithTag("qa-capsule-mic", useUnmergedTree = true).performClick()
+        val rec = factory.created.single()
+        compose.onNodeWithTag("qa-capsule-mic", useUnmergedTree = true).performClick()
+        compose.onNodeWithTag("qa-capsule-input").performTextInput("my edit")
+        compose.runOnIdle { rec.callbacks.onFinal("late transcript") }
+        compose.waitForIdle()
+        assertEquals(1, rec.cancelCount)
+        assertEquals(1, rec.destroyCount)
+        assertEquals("my edit", compose.onNodeWithTag("qa-capsule-input").editableTextValue())
     }
 
     // (f) Send button must be inert while Listening even if text would otherwise

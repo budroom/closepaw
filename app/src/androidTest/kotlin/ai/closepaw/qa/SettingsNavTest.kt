@@ -28,12 +28,12 @@ class SettingsNavTest {
     @Test fun sheet_opens_to_home_page() {
         compose.setContent { TestSettingsSheet() }
 
-        compose.onNodeWithText("LLM & Authentication").assertExists()
+        compose.onNodeWithText("ChatGPT Subscription").assertExists()
         compose.onNodeWithText("Agent Behavior").assertExists()
-        compose.onNodeWithText("Permissions & Advanced").assertExists()
+        compose.onNodeWithText("System & Debug").assertExists()
 
         // Sub-page unique markers must be absent on home.
-        compose.onAllNodesWithText("Sign In").assertCountEquals(0)
+        compose.onAllNodesWithText("Sign in with ChatGPT").assertCountEquals(0)
         compose.onAllNodesWithText("Termux Shell").assertCountEquals(0)
         compose.onAllNodesWithText("Session Traces").assertCountEquals(0)
     }
@@ -52,16 +52,16 @@ class SettingsNavTest {
         compose.setContent { TestSettingsSheet() }
 
         // Enter sub-page via nav row.
-        compose.onNodeWithText("LLM & Authentication").performClick()
-        compose.onNodeWithText("Sign In").assertExists()  // tabs visible = sub-page
+        compose.onNodeWithText("ChatGPT Subscription").performClick()
+        compose.onNodeWithText("Sign in with ChatGPT").assertExists()  // tabs visible = sub-page
 
         // Press Back icon — "Back" contentDescription exists only on sub-page headers.
         compose.onNodeWithContentDescription("Back").performClick()
 
         // Home markers back, sub-page tabs gone.
-        compose.onAllNodesWithText("Sign In").assertCountEquals(0)
+        compose.onAllNodesWithText("Sign in with ChatGPT").assertCountEquals(0)
         compose.onNodeWithText("Agent Behavior").assertExists()
-        compose.onNodeWithText("Permissions & Advanced").assertExists()
+        compose.onNodeWithText("System & Debug").assertExists()
     }
 
     // S4: Page state is rememberSaveable — survives config change (simulated via StateRestorationTester).

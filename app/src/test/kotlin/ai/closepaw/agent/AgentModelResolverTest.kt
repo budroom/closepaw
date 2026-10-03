@@ -30,7 +30,7 @@ class AgentModelResolverTest {
                 {
                   "test-model": {
                     "display_name": "Test Model",
-                    "provider":"OPENAI_API",
+                    "provider":"OPENAI_CODEX",
                     "api": "response",
                     "model_id": "provider-model-id",
                     "supports_vision": true

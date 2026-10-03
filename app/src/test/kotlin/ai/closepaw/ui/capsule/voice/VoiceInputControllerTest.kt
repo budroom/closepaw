@@ -12,6 +12,36 @@ import org.junit.Test
  */
 class VoiceInputControllerTest {
 
+    @Test
+    fun `cloud processing and limit failure preserve draft and allow retry`() {
+        val factory = FakeRecognizerFactory()
+        val (controller, onText, onToast) = newController(factory)
+        controller.start("typed draft")
+        val callbacks = factory.created.last().callbacks
+        callbacks.onProcessing()
+        assertThat(controller.state).isEqualTo(VoiceState.Stopping)
+        callbacks.onError(VoiceError.UsageLimit)
+        assertThat(controller.state).isEqualTo(VoiceState.Idle)
+        assertThat(onText.calls.last()).isEqualTo("typed draft")
+        assertThat(onToast.calls.last()).contains("usage limit")
+        controller.start("typed draft")
+        assertThat(controller.state).isEqualTo(VoiceState.Listening)
+    }
+
+    @Test
+    fun `cancelling transcription destroys recognizer and ignores late final`() {
+        val factory = FakeRecognizerFactory()
+        val (controller, onText, _) = newController(factory)
+        controller.start("draft")
+        val fake = factory.created.last()
+        controller.stop()
+        controller.cancel()
+        fake.callbacks.onFinal("stale text")
+        assertThat(fake.destroyCount).isEqualTo(1)
+        assertThat(controller.state).isEqualTo(VoiceState.Idle)
+        assertThat(onText.calls).isEmpty()
+    }
+
     private class CapturingOnText : (String) -> Unit {
         val calls = mutableListOf<String>()
         override fun invoke(s: String) { calls.add(s) }

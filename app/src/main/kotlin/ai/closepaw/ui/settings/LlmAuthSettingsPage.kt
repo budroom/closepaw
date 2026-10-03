@@ -131,126 +131,37 @@ internal fun LlmAuthSettingsPage(
     onOtherBaseUrlChange: (String) -> Unit = {},
     onOtherModelIdChange: (String) -> Unit = {},
 ) {
-    // Initial tab: explicit caller request wins; else derive from selected model's provider mode.
-    // When the Local tab is hidden, any LOCAL landing target falls back to API_KEY.
-    val modelMode = modelCatalog.resolveOrNull(selectedModel)?.provider?.mode
-    var selectedTab by rememberSaveable(initialAuthTab, modelMode, llmBackend) {
-        val raw = when {
-            initialAuthTab != null -> initialAuthTab.toTab()
-            modelMode == AuthMode.OAuth -> LlmAuthTab.SIGN_IN
-            llmBackend == LLMBackendType.LOCAL -> LlmAuthTab.LOCAL
-            else -> LlmAuthTab.API_KEY
-        }
-        mutableStateOf(if (raw == LlmAuthTab.LOCAL && !LOCAL_TAB_ENABLED) LlmAuthTab.API_KEY else raw)
-    }
-    val activeTab = selectedTab.visibleOrFallback()
-    LaunchedEffect(activeTab, selectedTab) {
-        if (activeTab != selectedTab) selectedTab = activeTab
-    }
-
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val authStore = remember(context) { AuthStoreHolder.get(context) }
-    // Debounce + single-flight + FIFO mutex: cancel any pending write on each
-    // keystroke; the mutex serializes writes that already passed the debounce
-    // so the final keystroke wins even if an earlier write reached AuthStore.
-    val pendingApiKeyPersist = remember { arrayOf<Job?>(null) }
-    val apiKeyPersistMutex = remember { Mutex() }
-    val pendingOtherBaseUrlPersist = remember { arrayOf<Job?>(null) }
-    val pendingOtherModelIdPersist = remember { arrayOf<Job?>(null) }
-
-    // Commit wrappers — called on real user actions inside tab content, NOT on tab tap.
-    fun commitSignIn(action: () -> Unit) {
-        onBackendChange(LLMBackendType.OPENAI)
-        val target = resolveProviderForTab(LlmAuthTab.SIGN_IN, selectedModel, modelCatalog)
-        canonicalizeMainModel(
-            modelCatalog = modelCatalog,
-            provider = target,
-            api = null,
-            selectedModel = selectedModel,
-            onModelChange = onModelChange
-        )
-        action()
-    }
-
-    fun commitApiKey(action: () -> Unit) {
-        onBackendChange(LLMBackendType.OPENAI)
-        action()
-    }
-
-    fun commitLocal(action: () -> Unit) {
-        onBackendChange(LLMBackendType.LOCAL)
-        action()
-    }
-
+    val subscriptionModel = ai.closepaw.llm.SubscriptionPolicy.modelFor(selectedModel, modelCatalog)
     Column(modifier = Modifier.fillMaxWidth()) {
-        PageMastheadDrillDown(title = "LLM & Authentication", onBack = onBack, onClose = onClose)
-
-        TabRow(selectedTabIndex = VISIBLE_TABS.indexOf(activeTab).coerceAtLeast(0)) {
-            VISIBLE_TABS.forEach { tab ->
-                Tab(
-                    selected = activeTab == tab,
-                    onClick = { selectedTab = tab },
-                    text = { Text(tab.label) }
-                )
-            }
-        }
-
+        PageMastheadDrillDown(title = "ChatGPT Subscription", onBack = onBack, onClose = onClose)
         Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(start = MaterialTheme.closePaw.spacing.lg, end = MaterialTheme.closePaw.spacing.lg, top = MaterialTheme.closePaw.spacing.lg)
+            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(MaterialTheme.closePaw.spacing.lg)
         ) {
-            when (activeTab) {
-                LlmAuthTab.SIGN_IN -> SignInTabContent(
-                    selectedModel = selectedModel,
-                    onModelChange = { commitSignIn { onModelChange(it) } },
-                    modelCatalog = modelCatalog,
-                    openAiAuthUiState = openAiAuthUiState,
-                    onStartOAuth = { commitSignIn { onStartOAuth() } },
-                    onCancelOAuth = onCancelOAuth,
-                    onSignOut = {
-                        scope.launch { authStore.clear(LLMProvider.OPENAI_CODEX) }
-                        onSignOut()
-                    }
-                )
-                LlmAuthTab.API_KEY -> ApiKeyTabContent(
-                    selectedModel = selectedModel,
-                    onModelChange = { commitApiKey { onModelChange(it) } },
-                    modelCatalog = modelCatalog,
-                    authStore = authStore,
-                    initialProvider = initialProvider,
-                    otherBaseUrl = otherBaseUrl,
-                    otherModelId = otherModelId,
-                    onApiKeyPersist = { provider, key ->
-                        commitApiKey { }
-                        launchDebouncedApiKeyPersist(
-                            scope = scope,
-                            authStore = authStore,
-                            mutex = apiKeyPersistMutex,
-                            pending = pendingApiKeyPersist,
-                            provider = provider,
-                            key = key,
-                        )
-                    },
-                    onOtherBaseUrlPersist = { url ->
-                        launchDebouncedPersist(scope, pendingOtherBaseUrlPersist) {
-                            onOtherBaseUrlChange(url)
-                        }
-                    },
-                    onOtherModelIdPersist = { modelId ->
-                        launchDebouncedPersist(scope, pendingOtherModelIdPersist) {
-                            onOtherModelIdChange(modelId)
-                        }
-                    },
-                )
-                LlmAuthTab.LOCAL -> LocalTabContent(
-                    selectedLocalModel = selectedLocalModel,
-                    onLocalModelChange = { commitLocal { onLocalModelChange(it) } },
-                    modelLoadingStatus = modelLoadingStatus
-                )
-            }
+            SignInTabContent(
+                selectedModel = subscriptionModel,
+                onModelChange = {
+                    onBackendChange(LLMBackendType.OPENAI)
+                    onModelChange(it)
+                },
+                modelCatalog = modelCatalog,
+                openAiAuthUiState = openAiAuthUiState,
+                onStartOAuth = {
+                    onBackendChange(LLMBackendType.OPENAI)
+                    if (subscriptionModel != selectedModel) onModelChange(subscriptionModel)
+                    onStartOAuth()
+                },
+                onCancelOAuth = onCancelOAuth,
+                onSignOut = onSignOut,
+            )
+            Spacer(modifier = Modifier.height(20.dp))
+            Text(
+                "Uses your ChatGPT/Codex subscription for tasks and voice input. " +
+                    "History stays on this device; signing in does not import ChatGPT chats or other projects. " +
+                    "OpenAI controls your subscription limits. ClosePaw cannot reset them.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             Fleuron()
             Spacer(modifier = Modifier.height(32.dp))
         }

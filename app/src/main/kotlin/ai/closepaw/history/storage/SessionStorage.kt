@@ -55,6 +55,17 @@ class SessionStorage(
         }
         return dir
     }
+
+    /** Session APIs can address only app-private files on this device. */
+    private fun localFile(fileName: String): File {
+        require(fileName.isNotBlank() && File(fileName).name == fileName && '\\' !in fileName) {
+            "Session filename must not contain a path"
+        }
+        val dir = getSessionsDir().canonicalFile
+        val file = File(dir, fileName)
+        require(file.canonicalFile.parentFile == dir) { "Session file must stay in device history" }
+        return file
+    }
     
     /**
      * Generate a filename for a new session.
@@ -76,9 +87,8 @@ class SessionStorage(
      */
     suspend fun writeSession(fileName: String, record: SessionRecord): Result<Unit> = withContext(ioDispatcher) {
         try {
-            val dir = getSessionsDir()
-            val target = File(dir, fileName)
-            val tmp = File(dir, "$fileName.tmp")
+            val target = localFile(fileName)
+            val tmp = localFile("$fileName.tmp")
             val jsonString = json.encodeToString(record)
             tmp.writeText(jsonString)
             if (!tmp.renameTo(target)) {
@@ -101,7 +111,7 @@ class SessionStorage(
      */
     suspend fun readSession(fileName: String): Result<SessionRecord> = withContext(ioDispatcher) {
         try {
-            val file = File(getSessionsDir(), fileName)
+            val file = localFile(fileName)
             if (!file.exists()) {
                 return@withContext Result.failure(NoSuchFileException(file))
             }
@@ -123,7 +133,7 @@ class SessionStorage(
     suspend fun listSessionFiles(): List<File> = withContext(ioDispatcher) {
         val dir = getSessionsDir()
         val files = dir.listFiles { file ->
-            file.isFile && 
+            file.isFile && runCatching { localFile(file.name) }.isSuccess &&
             file.name.startsWith(SESSION_PREFIX) && 
             file.name.endsWith(SESSION_SUFFIX)
         } ?: emptyArray()
@@ -139,7 +149,7 @@ class SessionStorage(
      */
     suspend fun deleteSession(fileName: String): Result<Unit> = withContext(ioDispatcher) {
         try {
-            val file = File(getSessionsDir(), fileName)
+            val file = localFile(fileName)
             if (file.exists()) {
                 val deleted = file.delete()
                 if (deleted) {
@@ -162,14 +172,14 @@ class SessionStorage(
      * Check if a session file exists.
      */
     fun sessionExists(fileName: String): Boolean {
-        return File(getSessionsDir(), fileName).exists()
+        return runCatching { localFile(fileName).exists() }.getOrDefault(false)
     }
     
     /**
      * Get the full path to a session file.
      */
     fun getSessionFile(fileName: String): File {
-        return File(getSessionsDir(), fileName)
+        return localFile(fileName)
     }
 
     /**
@@ -189,9 +199,8 @@ class SessionStorage(
         snapshot: SessionRuntimeSnapshot
     ): Result<Unit> = withContext(ioDispatcher) {
         try {
-            val dir = getSessionsDir()
-            val target = File(dir, fileName)
-            val tmp = File(dir, "$fileName.tmp")
+            val target = localFile(fileName)
+            val tmp = localFile("$fileName.tmp")
             val jsonString = json.encodeToString(snapshot)
             tmp.writeText(jsonString)
             if (!tmp.renameTo(target)) {
@@ -211,7 +220,7 @@ class SessionStorage(
      */
     suspend fun readSnapshot(fileName: String): Result<SessionRuntimeSnapshot> = withContext(ioDispatcher) {
         try {
-            val file = File(getSessionsDir(), fileName)
+            val file = localFile(fileName)
             if (!file.exists()) {
                 return@withContext Result.failure(NoSuchFileException(file))
             }
@@ -231,7 +240,7 @@ class SessionStorage(
     suspend fun listSnapshotFiles(): List<File> = withContext(ioDispatcher) {
         val dir = getSessionsDir()
         val files = dir.listFiles { file ->
-            file.isFile &&
+            file.isFile && runCatching { localFile(file.name) }.isSuccess &&
             file.name.startsWith(CONTEXT_PREFIX) &&
             file.name.endsWith(SESSION_SUFFIX)
         } ?: emptyArray()
@@ -245,7 +254,7 @@ class SessionStorage(
         val contextFileName = contextFileNameFor(sessionFileName)
         val sessionResult = deleteSession(sessionFileName)
         try {
-            val contextFile = File(getSessionsDir(), contextFileName)
+            val contextFile = localFile(contextFileName)
             if (contextFile.exists()) {
                 contextFile.delete()
             }

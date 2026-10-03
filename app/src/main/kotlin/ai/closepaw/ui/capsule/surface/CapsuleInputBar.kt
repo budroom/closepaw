@@ -164,6 +164,7 @@ internal fun CapsuleInputBar(
 
     val hint = when {
         voiceState == VoiceState.Listening -> "Listening…"
+        voiceState == VoiceState.Stopping -> "Transcribing…"
         inputEnabled -> spec.hint
         else -> "Take over to type note"
     }
@@ -289,7 +290,7 @@ internal fun CapsuleInputBar(
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.StopCircle,
-                            contentDescription = "Stopping voice input",
+                            contentDescription = "Transcribing voice input",
                             modifier = Modifier.size(18.dp),
                         )
                     }
@@ -303,7 +304,7 @@ internal fun CapsuleInputBar(
         onValueChange = { newText ->
             // Typing (or IME edits) during Listening cancels the recognizer but keeps the user's
             // text. Detect this by diffing against the last value the controller pushed via onText.
-            if (voiceState == VoiceState.Listening &&
+            if ((voiceState == VoiceState.Listening || voiceState == VoiceState.Stopping) &&
                 voiceController != null &&
                 newText != controllerLastText.value
             ) {

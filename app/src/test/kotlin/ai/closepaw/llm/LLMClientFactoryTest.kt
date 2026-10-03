@@ -69,46 +69,20 @@ class LLMClientFactoryTest {
     private fun realStore(): AuthStore = AuthStore(context, prefsProvider = { fakePrefs })
 
     @Test
-    fun `create returns OpenAIResponseClient for response api`() = runBlocking {
+    fun `rejects API and other providers even with stored keys`() = runBlocking {
         val store = realStore()
         store.set(LLMProvider.OPENAI_API, AuthCredential.ApiKey("sk-test"))
+        store.set(LLMProvider.OPENROUTER, AuthCredential.ApiKey("sk-other"))
         val factory = LLMClientFactory(catalog, store)
-
-        val client = factory.create("gpt-5.2")
-        assertTrue(client is OpenAIResponseClient)
+        for (name in listOf("gpt-5.2", "gpt-5.2-chat", "glm-4.7")) {
+            assertThrows(IllegalArgumentException::class.java) { factory.create(name) }
+        }
     }
 
     @Test
-    fun `create returns ChatCompletionClient for chat api`() = runBlocking {
-        val store = realStore()
-        store.set(LLMProvider.OPENAI_API, AuthCredential.ApiKey("sk-test"))
-        val factory = LLMClientFactory(catalog, store)
-
-        val client = factory.create("gpt-5.2-chat")
-        assertTrue(client is ChatCompletionClient)
-    }
-
-    @Test
-    fun `create caches clients per model name`() = runBlocking {
-        val store = realStore()
-        store.set(LLMProvider.OPENAI_API, AuthCredential.ApiKey("sk-test"))
-        val factory = LLMClientFactory(catalog, store)
-
-        val c1 = factory.create("gpt-5.2")
-        val c2 = factory.create("gpt-5.2")
-        assertSame(c1, c2)
-    }
-
-    @Test
-    fun `different providers get different clients`() = runBlocking {
-        val store = realStore()
-        store.set(LLMProvider.OPENAI_API, AuthCredential.ApiKey("sk-test"))
-        store.set(LLMProvider.OPENROUTER, AuthCredential.ApiKey("sk-or-test"))
-        val factory = LLMClientFactory(catalog, store)
-
-        val openai = factory.create("gpt-5.2-chat")
-        val openrouter = factory.create("glm-4.7")
-        assertNotSame(openai, openrouter)
+    fun `create caches subscription clients per model name`() {
+        val factory = LLMClientFactory(catalog, realStore())
+        assertSame(factory.create("gpt-5.2-codex"), factory.create("gpt-5.2-codex"))
     }
 
     @Test
@@ -136,23 +110,12 @@ class LLMClientFactoryTest {
     }
 
     @Test
-    fun `create throws MissingCredential when store has nothing`() {
-        val factory = LLMClientFactory(catalog, realStore())
-        assertThrows(MissingCredential::class.java) { factory.create("gpt-5.2") }
-    }
-
-    @Test
-    fun `generation bump invalidates cached client`() = runBlocking {
+    fun `subscription supplier rejects missing sign in without falling back to API keys`() = runBlocking {
         val store = realStore()
-        store.set(LLMProvider.OPENAI_API, AuthCredential.ApiKey("sk-one"))
-        val factory = LLMClientFactory(catalog, store)
-
-        val c1 = factory.create("gpt-5.2")
-        // Rotate the key — bumps generation — factory must rebuild.
-        store.set(LLMProvider.OPENAI_API, AuthCredential.ApiKey("sk-two"))
-        val c2 = factory.create("gpt-5.2")
-
-        assertNotSame(c1, c2)
+        store.set(LLMProvider.OPENAI_API, AuthCredential.ApiKey("sk-test"))
+        val client = LLMClientFactory(catalog, store).create("gpt-5.2-codex") as CodexResponseClient
+        val failure = runCatching { extractHeaderSupplier(client)() }.exceptionOrNull()
+        assertTrue(failure is MissingCredential)
     }
 
     @Test
@@ -179,9 +142,9 @@ class LLMClientFactoryTest {
     @Test
     fun `concurrent create across set bump never returns stale client`() = runBlocking {
         val store = realStore()
-        store.set(LLMProvider.OPENAI_API, AuthCredential.ApiKey("sk-0"))
+        store.set(LLMProvider.OPENAI_CODEX, AuthCredential.OAuth("at-0", "rt", Long.MAX_VALUE, null, null))
         val factory = LLMClientFactory(catalog, store)
-        val c0 = factory.create("gpt-5.2")
+        val c0 = factory.create("gpt-5.2-codex")
 
         // Two reader threads torture-test against a writer. After every bump, any
         // create() that observes the post-bump store must never return c0.
@@ -196,7 +159,7 @@ class LLMClientFactoryTest {
                 startGate.await()
                 repeat(iterations) { i ->
                     runBlocking {
-                        store.set(LLMProvider.OPENAI_API, AuthCredential.ApiKey("sk-${i + 1}"))
+                        store.set(LLMProvider.OPENAI_CODEX, AuthCredential.OAuth("at-${i + 1}", "rt", Long.MAX_VALUE, null, null))
                     }
                 }
             } catch (t: Throwable) { errors += t } finally { done.countDown() }
@@ -208,7 +171,7 @@ class LLMClientFactoryTest {
                 // writer has already bumped generation at least once.
                 var seenNonStale = false
                 repeat(iterations * 2) {
-                    val c = factory.create("gpt-5.2")
+                    val c = factory.create("gpt-5.2-codex")
                     if (c !== c0) seenNonStale = true
                     // Strict invariant: once we've seen a post-bump client, we must
                     // never see c0 again (no regression to stale).
@@ -229,7 +192,7 @@ class LLMClientFactoryTest {
         if (errors.isNotEmpty()) throw errors.first()
 
         // Final state: generation matches latest writer bump → client must be fresh.
-        val finalClient = factory.create("gpt-5.2")
+        val finalClient = factory.create("gpt-5.2-codex")
         assertNotSame(c0, finalClient)
     }
 
@@ -277,31 +240,16 @@ class LLMClientFactoryTest {
     )
 
     @Test
-    fun `OTHER builds ChatCompletionClient against entry baseUrl`() = runBlocking {
+    fun `OTHER is rejected regardless of credentials or base URL`() = runBlocking {
         val store = realStore()
         store.set(LLMProvider.OTHER, AuthCredential.ApiKey("sk-other"))
-        val factory = LLMClientFactory(otherCatalogWithBaseUrl, store)
-
-        val client = factory.create("other-custom")
-        assertTrue(client is ChatCompletionClient)
-    }
-
-    @Test
-    fun `OTHER throws MissingCredential when entry baseUrl is blank`() = runBlocking {
-        val store = realStore()
-        store.set(LLMProvider.OTHER, AuthCredential.ApiKey("sk-other"))
-        val factory = LLMClientFactory(otherCatalogBlankBaseUrl, store)
-
-        val error = assertThrows(MissingCredential::class.java) { factory.create("other-broken") }
-        assertEquals(LLMProvider.OTHER, error.provider)
-    }
-
-    @Test
-    fun `OTHER throws MissingCredential when api key missing`() = runBlocking {
-        val factory = LLMClientFactory(otherCatalogWithBaseUrl, realStore())
-
-        val error = assertThrows(MissingCredential::class.java) { factory.create("other-custom") }
-        assertEquals(LLMProvider.OTHER, error.provider)
+        assertThrows(IllegalArgumentException::class.java) {
+            LLMClientFactory(otherCatalogWithBaseUrl, store).create("other-custom")
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            LLMClientFactory(otherCatalogBlankBaseUrl, store).create("other-broken")
+        }
+        Unit
     }
 
     @Suppress("UNCHECKED_CAST")

@@ -95,6 +95,10 @@ class CodexResponseClientTest {
         assertThat(json.getString("tool_choice")).isEqualTo("auto")
         assertThat(json.getBoolean("parallel_tool_calls")).isTrue()
         assertThat(json.has("max_output_tokens")).isFalse()
+        // Only the caller's local history is sent; there is no remote conversation continuation.
+        assertThat(json.has("previous_response_id")).isFalse()
+        assertThat(json.has("conversation")).isFalse()
+        assertThat(json.has("project_id")).isFalse()
     }
 
     @Test

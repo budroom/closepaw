@@ -64,7 +64,7 @@ internal fun SettingsHomePage(
         ) {
             SectionHeader("Behavior")
             SettingsNavigationRow(
-                title = "LLM & Authentication",
+                title = "ChatGPT Subscription",
                 subtitle = llmSubtitle(llmBackend, selectedModel, modelOptions, selectedLocalModel, modelCatalog),
                 onClick = { onNavigate(SettingsPage.LLM_AUTH) }
             )
@@ -125,7 +125,7 @@ private fun llmSubtitle(
     val modelName = modelOptions.find { it.first == selectedModel }?.second ?: selectedModel
     val mode = modelCatalog.resolveOrNull(selectedModel)?.provider?.mode
     val authLabel = when (mode) {
-        AuthMode.OAuth -> "OAuth"
+        AuthMode.OAuth -> "Subscription"
         AuthMode.ApiKey -> "API key"
         AuthMode.Local, null -> "API key"
     }

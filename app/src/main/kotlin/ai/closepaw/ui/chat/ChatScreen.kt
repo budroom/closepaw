@@ -62,7 +62,7 @@ import ai.closepaw.ui.capsule.surface.LocalVoiceFeedback
 import ai.closepaw.ui.capsule.surface.SmartCapsuleSurface
 import ai.closepaw.ui.capsule.surface.VoiceMicDeps
 import ai.closepaw.ui.capsule.surface.smartCapsuleHostPadding
-import ai.closepaw.ui.capsule.voice.AndroidRecognizerFactory
+import ai.closepaw.ui.capsule.voice.ChatGptRecognizerFactory
 import ai.closepaw.onboarding.PermissionStateMonitor.PermissionRepairModel
 import ai.closepaw.ui.chat.components.ChatHeader
 import ai.closepaw.ui.chat.components.EmptyState
@@ -124,10 +124,10 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
 
     val ctx = LocalContext.current
-    val voiceDeps = remember(ctx) {
+    val voiceDeps = remember(ctx, scope) {
         val activity = ctx as? android.app.Activity
         object : VoiceMicDeps {
-            override val factory = AndroidRecognizerFactory(ctx.applicationContext)
+            override val factory = ChatGptRecognizerFactory(ctx.applicationContext, scope)
             override val activity: android.app.Activity? = activity
             override fun isPermissionGranted(): Boolean =
                 androidx.core.content.ContextCompat.checkSelfPermission(

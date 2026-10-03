@@ -55,6 +55,7 @@ class LLMClientFactory(
 
         val entry = catalog.resolve(modelName)
         val provider = entry.provider
+        SubscriptionPolicy.requireSubscription(provider)
         val store = authStore
 
         val result = clientCache.compute(modelName) { _, existing ->

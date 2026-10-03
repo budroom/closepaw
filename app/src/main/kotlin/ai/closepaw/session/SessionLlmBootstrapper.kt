@@ -34,6 +34,7 @@ internal object SessionLlmBootstrapper {
     ): SessionLlmBootstrap {
         requireOffMainThread()
         val backend = config.llm.backendType
+        require(backend == LLMBackendType.OPENAI) { "ClosePaw requires a ChatGPT/Codex subscription." }
         val baseCatalog = catalogRepository.catalog.value
 
         val modelCatalog = baseCatalog.withBaseUrlOverrides(baseUrlOverrides)

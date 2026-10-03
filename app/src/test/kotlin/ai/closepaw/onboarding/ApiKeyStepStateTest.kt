@@ -578,20 +578,17 @@ class ApiKeyStepStateTest {
     }
 
     @Test
-    fun `re-entry with apiKey Done and manual credential yields Valid empty key`() = runTest {
+    fun `re-entry with old API credential requires subscription sign in`() = runTest {
         every { store.loadOutcomes() } returns onApiKeyStepOutcomes(apiKey = StepOutcome.Done)
         every { authStore.has(LLMProvider.OPENAI_CODEX) } returns false
         every { authStore.has(LLMProvider.OPENROUTER) } returns true
         val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler) + Job())
         val vm = makeVm(scope); drain(scope, this)
         vm.goBack(); drain(scope, this)
-
         assertThat(vm.currentStep).isEqualTo(WizardStep.ApiKey)
-        assertThat(vm.authMethod).isEqualTo(ApiKeyAuthMethod.MANUAL)
-        assertThat(vm.selectedProvider).isEqualTo(OnboardingProvider.OPENROUTER)
-        val state = vm.stepState
-        assertThat(state).isInstanceOf(ApiKeyStepState.Valid::class.java)
-        assertThat((state as ApiKeyStepState.Valid).key).isEqualTo("")
+        assertThat(vm.outcomes.apiKey).isEqualTo(StepOutcome.Pending)
+        assertThat(vm.authMethod).isEqualTo(ApiKeyAuthMethod.OAUTH)
+        assertThat(vm.stepState).isEqualTo(ApiKeyStepState.OAuthReady)
         scope.coroutineContext.job.cancel()
     }
 
@@ -633,57 +630,45 @@ class ApiKeyStepStateTest {
     }
 
     @Test
-    fun `fresh entry with Pending outcome auto-marks Done and advances when OPENROUTER api key exists`() = runTest {
+    fun `OpenRouter key does not complete subscription onboarding`() = runTest {
         every { store.loadOutcomes() } returns onApiKeyStepOutcomes(apiKey = StepOutcome.Pending)
         every { authStore.has(LLMProvider.OPENAI_CODEX) } returns false
         every { authStore.has(LLMProvider.OPENROUTER) } returns true
         val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler) + Job())
-
         val vm = makeVm(scope); drain(scope, this)
-
-        assertThat(vm.outcomes.apiKey).isEqualTo(StepOutcome.Done)
-        assertThat(vm.currentStep).isEqualTo(WizardStep.Demo)
+        assertThat(vm.currentStep).isEqualTo(WizardStep.ApiKey)
+        assertThat(vm.outcomes.apiKey).isEqualTo(StepOutcome.Pending)
+        assertThat(vm.authMethod).isEqualTo(ApiKeyAuthMethod.OAUTH)
+        assertThat(vm.stepState).isEqualTo(ApiKeyStepState.OAuthReady)
         scope.coroutineContext.job.cancel()
     }
 
     @Test
-    fun `fresh entry with Pending outcome auto-marks Done and advances when OPENAI_API api key exists`() = runTest {
+    fun `OpenAI API key does not complete subscription onboarding`() = runTest {
         every { store.loadOutcomes() } returns onApiKeyStepOutcomes(apiKey = StepOutcome.Pending)
         every { authStore.has(LLMProvider.OPENAI_CODEX) } returns false
         every { authStore.has(LLMProvider.OPENAI_API) } returns true
         val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler) + Job())
-
         val vm = makeVm(scope); drain(scope, this)
-
-        assertThat(vm.outcomes.apiKey).isEqualTo(StepOutcome.Done)
-        assertThat(vm.currentStep).isEqualTo(WizardStep.Demo)
+        assertThat(vm.currentStep).isEqualTo(WizardStep.ApiKey)
+        assertThat(vm.outcomes.apiKey).isEqualTo(StepOutcome.Pending)
+        assertThat(vm.authMethod).isEqualTo(ApiKeyAuthMethod.OAUTH)
+        assertThat(vm.stepState).isEqualTo(ApiKeyStepState.OAuthReady)
         scope.coroutineContext.job.cancel()
     }
 
     @Test
-    fun `back-nav from Demo to Pending ApiKey with existing credential shows success without advancing`() = runTest {
-        // Demo is Pending so wizard lands there first; user navigates back to ApiKey.
-        // On re-entry, autoAdvance=false so we render the success state and stay put,
-        // letting the user choose to switch provider or continue manually.
-        every { store.loadOutcomes() } returns StepOutcomes(
-            accessibility = StepOutcome.Done,
-            overlay = StepOutcome.Done,
-            battery = StepOutcome.Skipped,
-            apiKey = StepOutcome.Done,   // wizard starts on Demo
-            demo = StepOutcome.Pending,
-        )
+    fun `stored API key alone keeps subscription sign in pending`() = runTest {
+        every { store.loadOutcomes() } returns onApiKeyStepOutcomes(apiKey = StepOutcome.Pending)
         every { authStore.has(LLMProvider.OPENAI_CODEX) } returns false
         every { authStore.has(LLMProvider.OPENROUTER) } returns true
         val scope = CoroutineScope(UnconfinedTestDispatcher(testScheduler) + Job())
-
         val vm = makeVm(scope); drain(scope, this)
-        assertThat(vm.currentStep).isEqualTo(WizardStep.Demo)
-
-        vm.goBack(); drain(scope, this)
-
         assertThat(vm.currentStep).isEqualTo(WizardStep.ApiKey)
-        assertThat(vm.selectedProvider).isEqualTo(OnboardingProvider.OPENROUTER)
-        assertThat(vm.stepState).isInstanceOf(ApiKeyStepState.Valid::class.java)
+        assertThat(vm.outcomes.apiKey).isEqualTo(StepOutcome.Pending)
+        assertThat(vm.authMethod).isEqualTo(ApiKeyAuthMethod.OAUTH)
+        assertThat(vm.stepState).isEqualTo(ApiKeyStepState.OAuthReady)
         scope.coroutineContext.job.cancel()
     }
+
 }

@@ -19,9 +19,6 @@
         <intent>
             <action android:name="com.termux.RUN_COMMAND" />
         </intent>
-        <intent>
-            <action android:name="android.speech.RecognitionService" />
-        </intent>
     </queries>
 
     <application

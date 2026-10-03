@@ -17,6 +17,22 @@ import org.junit.rules.TemporaryFolder
 
 class SessionStorageTest {
 
+    @Test
+    fun `history cannot read or delete other project files through paths or symlinks`() = runTest {
+        val root = tempFolder.newFolder("private")
+        val outside = tempFolder.newFile("other-project.json").apply { writeText("private") }
+        val storage = SessionStorage(buildTestContext(root), StandardTestDispatcher(testScheduler))
+        assertThat(storage.readSession(outside.absolutePath).isFailure).isTrue()
+        assertThat(storage.readSession("../../other-project.json").isFailure).isTrue()
+        assertThat(storage.deleteSession("../../other-project.json").isFailure).isTrue()
+        val link = java.io.File(storage.getSessionsDir(), "session-foreign.json")
+        java.nio.file.Files.createSymbolicLink(link.toPath(), outside.toPath())
+        assertThat(storage.listSessionFiles()).isEmpty()
+        assertThat(storage.readSession(link.name).isFailure).isTrue()
+        assertThat(storage.deleteSession(link.name).isFailure).isTrue()
+        assertThat(outside.readText()).isEqualTo("private")
+    }
+
     @get:Rule
     val tempFolder = TemporaryFolder()
 

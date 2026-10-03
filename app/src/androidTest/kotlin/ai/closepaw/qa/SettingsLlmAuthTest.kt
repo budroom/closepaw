@@ -73,131 +73,32 @@ class SettingsLlmAuthTest {
         }
     }
 
-    // S5: switching tabs (no action) does NOT fire backend/model commits.
-    @Test fun tab_switch_does_not_commit_backend() {
-        var backendCalls = 0
-        var modelCalls = 0
-        compose.setContent {
-            AuthPage(
-                onBackendChange = { backendCalls++ },
-                onModelChange = { modelCalls++ },
-            )
+    @Test fun only_subscription_controls_are_visible_even_for_old_api_deep_link() {
+        compose.setContent { AuthPage(initialAuthTab = AuthMode.ApiKey) }
+        compose.onNodeWithText("Sign in with ChatGPT").assertExists()
+        for (label in listOf("API Key", "OpenAI Key", "OpenRouter", "Other", "Local")) {
+            compose.onAllNodesWithText(label).assertCountEquals(0)
         }
-
-        compose.onNodeWithText("Sign In").performClick()
-        compose.onNodeWithText("API Key").performClick()
-
-        assertEquals("onBackendChange must not fire on tab switch alone", 0, backendCalls)
-        assertEquals("onModelChange must not fire on tab switch alone", 0, modelCalls)
     }
 
-    // S6: clicking Start OAuth commits backend=OPENAI.
-    @Test fun oauth_start_commits_backend() {
-        var lastBackend: LLMBackendType? = null
+    @Test fun oauth_start_migrates_old_model_to_subscription() {
+        var model: String? = null
+        var backend: LLMBackendType? = null
+        var starts = 0
         compose.setContent {
-            AuthPage(
-                selectedModel = "gpt-5.2-codex",
-                onBackendChange = { lastBackend = it },
-            )
+            AuthPage(selectedModel = "gpt-5.2-chat", onModelChange = { model = it },
+                onBackendChange = { backend = it }, onStartOAuth = { starts++ })
         }
-
-        compose.onNodeWithText("Sign in with OpenAI").performClick()
-
-        assertEquals(LLMBackendType.OPENAI, lastBackend)
+        compose.onNodeWithText("Sign in with ChatGPT").performClick()
+        assertEquals("gpt-5.2-codex", model)
+        assertEquals(LLMBackendType.OPENAI, backend)
+        assertEquals(1, starts)
     }
 
-    // S7: provider sub-selector click is view-only — no settings writes
-    // (Section 5: "tab switch is view-only … only mutation is model commit").
-    @Test fun api_key_provider_switch_is_inert() {
-        var modelChanges = 0
-        compose.setContent {
-            AuthPage(
-                selectedModel = "gpt-5.2",
-                onModelChange = { modelChanges++ },
-            )
-        }
-
-        // OpenAI initial; switch to OpenRouter.
-        compose.onNodeWithText("OpenRouter").performClick()
-        // API Key field label reflects the provider change (view-only).
-        compose.onNodeWithText("OpenRouter Key").assertExists()
-        assertEquals("provider sub-selector must not commit a model", 0, modelChanges)
-    }
-
-    // S8: switching from OAuth-selected model into API Key tab shows the API-Key
-    // default provider (OPENAI_API), not the OAuth provider — Section 5 canonicalization.
-    @Test fun api_key_tab_with_codex_model_shows_openai_provider() {
-        compose.setContent {
-            AuthPage(
-                selectedModel = "gpt-5.2-codex",   // OAuth-mode model
-                initialAuthTab = AuthMode.ApiKey,
-            )
-        }
-        // API Key label should be OpenAI Key (default ApiKey provider), not Codex.
-        compose.onNodeWithText("OpenAI Key").assertExists()
-    }
-
-    // S9: committing via Start OAuth canonicalizes an incompatible selected model
-    // to the OAuth-provider (OPENAI_CODEX) default — e.g. gpt-5.2-chat → gpt-5.2-codex.
-    @Test fun incompatible_model_auto_resets_on_method_switch() {
-        var lastModel: String? = null
-        compose.setContent {
-            AuthPage(
-                selectedModel = "gpt-5.2-chat",     // ApiKey-mode model
-                onModelChange = { lastModel = it },
-            )
-        }
-
-        compose.onNodeWithText("Sign In").performClick()
-        compose.onNodeWithText("Sign in with OpenAI").performClick()
-
-        // Canonicalized to the OPENAI_CODEX default (OAuth tab).
-        assertNotEquals("gpt-5.2-chat", lastModel)
-        assertEquals("gpt-5.2-codex", lastModel)
-    }
-
-    // S10: SettingsSheet deep-link → initialAuthTab = OAuth lands on Sign In tab.
-    @Test fun initial_auth_tab_oauth_opens_sign_in_tab() {
-        compose.setContent {
-            AuthPage(
-                selectedModel = "gpt-5.2",
-                initialAuthTab = AuthMode.OAuth,
-            )
-        }
-        // Sign In tab content is visible: the "Sign in with OpenAI" button only
-        // exists on the SIGN_IN tab.
-        compose.onNodeWithText("Sign in with OpenAI").assertExists()
-    }
-
-    // S11: initialAuthTab = ApiKey forces API Key tab even when the selected
-    // model is an OAuth-mode provider.
-    @Test fun initial_auth_tab_api_key_overrides_model_mode() {
-        compose.setContent {
-            AuthPage(
-                selectedModel = "gpt-5.2-codex",    // would default to Sign In tab
-                initialAuthTab = AuthMode.ApiKey,
-            )
-        }
-        compose.onNodeWithText("OpenAI Key").assertExists()
-        // Sign-in button should NOT be present on API Key tab.
-        compose.onAllNodesWithText("Sign in with OpenAI").assertCountEquals(0)
-    }
-
-    @Test fun local_backend_falls_back_to_api_key_when_local_tab_hidden() {
-        compose.setContent {
-            AuthPage(llmBackend = LLMBackendType.LOCAL)
-        }
-
+    @Test fun local_backend_also_shows_subscription_sign_in() {
+        compose.setContent { AuthPage(llmBackend = LLMBackendType.LOCAL) }
+        compose.onNodeWithText("Sign in with ChatGPT").assertExists()
+        compose.onAllNodesWithText("API Key").assertCountEquals(0)
         compose.onAllNodesWithText("Local").assertCountEquals(0)
-        compose.onNodeWithText("OpenAI Key").assertExists()
-    }
-
-    @Test fun initial_auth_tab_local_falls_back_to_api_key_when_local_tab_hidden() {
-        compose.setContent {
-            AuthPage(initialAuthTab = AuthMode.Local)
-        }
-
-        compose.onAllNodesWithText("Local").assertCountEquals(0)
-        compose.onNodeWithText("OpenAI Key").assertExists()
     }
 }

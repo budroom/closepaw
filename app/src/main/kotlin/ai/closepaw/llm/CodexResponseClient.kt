@@ -244,6 +244,8 @@ class CodexResponseClient(
             .connectTimeout(30, TimeUnit.SECONDS)
             .readTimeout(120, TimeUnit.SECONDS)
             .writeTimeout(30, TimeUnit.SECONDS)
+            .followRedirects(false)
+            .followSslRedirects(false)
             .apply {
                 val sf = InsecureSslConfig.sslSocketFactory
                 val tm = InsecureSslConfig.trustManager

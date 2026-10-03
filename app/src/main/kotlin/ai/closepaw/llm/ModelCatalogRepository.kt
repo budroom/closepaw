@@ -291,11 +291,11 @@ class ModelCatalogRepository(
         private const val FALLBACK_CATALOG_JSON =
             """
             {
-              "glm-5": {
-                "display_name": "GLM-5",
-                "provider": "OPENROUTER",
-                "api": "chat",
-                "model_id": "z-ai/glm-5"
+              "gpt-5.5-codex": {
+                "display_name": "GPT-5.5 (ChatGPT sign-in)",
+                "provider": "OPENAI_CODEX",
+                "api": "response",
+                "model_id": "gpt-5.5"
               }
             }
             """

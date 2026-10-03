@@ -5,7 +5,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import java.util.Locale
 
 /**
@@ -78,7 +82,14 @@ class VoiceInputController(
         }
         recognizer = r
         val myGen = generation
+        state = VoiceState.Listening
         r.start(languageTag, object : RecognizerCallbacks {
+            override fun onProcessing() {
+                if (myGen != generation || disposed) return
+                partialAtStop = lastPartial
+                state = VoiceState.Stopping
+            }
+
             override fun onPartial(text: String) {
                 if (myGen != generation || disposed) return
                 // During Stopping the partialAtStop snapshot is frozen — incoming partials are
@@ -106,7 +117,6 @@ class VoiceInputController(
                 cleanupAfterTerminal(next)
             }
         })
-        state = VoiceState.Listening
     }
 
     fun stop() {
@@ -122,10 +132,14 @@ class VoiceInputController(
             // session is dropped.
             generation++
             recognizer?.cancel()
+            recognizer?.destroy()
+            recognizer = null
             return
         }
         generation++
         recognizer?.cancel()
+        recognizer?.destroy()
+        recognizer = null
         state = VoiceState.Idle
     }
 
@@ -165,7 +179,22 @@ class VoiceInputController(
         }
         VoiceError.Network, VoiceError.NetworkTimeout -> {
             onText(baseText)
-            onToast("Voice needs network for this language")
+            onToast("Voice input needs a network connection. Try again.")
+            VoiceState.Idle
+        }
+        VoiceError.SignInRequired -> {
+            onText(baseText)
+            onToast("Sign in with ChatGPT in Settings to use voice input")
+            VoiceState.Idle
+        }
+        VoiceError.UsageLimit -> {
+            onText(baseText)
+            onToast("ChatGPT usage limit reached. Wait until your limit renews.")
+            VoiceState.Idle
+        }
+        VoiceError.TranscriptionFailed -> {
+            onText(baseText)
+            onToast("ChatGPT could not transcribe this recording. Try again.")
             VoiceState.Idle
         }
         VoiceError.Busy, VoiceError.ServiceDied, VoiceError.Unknown -> {
@@ -200,11 +229,21 @@ fun rememberVoiceInputController(
     onText: (String) -> Unit,
     onToast: (String) -> Unit = {},
 ): VoiceInputController {
+    val currentOnText by rememberUpdatedState(onText)
+    val currentOnToast by rememberUpdatedState(onToast)
     val controller = remember(factory, languageTag) {
-        VoiceInputController(factory, languageTag, onText, onToast)
+        VoiceInputController(factory, languageTag, { currentOnText(it) }, { currentOnToast(it) })
     }
-    DisposableEffect(controller) {
-        onDispose { controller.dispose() }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(controller, lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) controller.cancel()
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            lifecycle.removeObserver(observer)
+            controller.dispose()
+        }
     }
     return controller
 }

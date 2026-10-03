@@ -54,7 +54,7 @@ class AppSettingsStore(private val context: Context) {
         private const val KEY_DISABLED_AGENT_SKILLS = "disabled_agent_skills"
         private const val KEY_APPROVAL_MODE = "approval_mode"
 
-        const val DEFAULT_MODEL = "glm-5"
+        const val DEFAULT_MODEL = ai.closepaw.llm.SubscriptionPolicy.DEFAULT_MODEL
         const val DEFAULT_DEBUG_MODE = false
         const val DEFAULT_PERCEPTION_MODE = "accessibility_only"
         val DEFAULT_LLM_BACKEND = LLMBackendType.OPENAI

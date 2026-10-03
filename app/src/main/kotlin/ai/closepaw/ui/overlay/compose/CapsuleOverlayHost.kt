@@ -19,6 +19,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.Alignment
@@ -34,7 +35,7 @@ import ai.closepaw.ui.capsule.surface.LocalVoiceFeedback
 import ai.closepaw.ui.capsule.surface.SmartCapsuleSurface
 import ai.closepaw.ui.capsule.surface.VoiceMicDeps
 import ai.closepaw.ui.capsule.surface.smartCapsuleHostPadding
-import ai.closepaw.ui.capsule.voice.AndroidRecognizerFactory
+import ai.closepaw.ui.capsule.voice.ChatGptRecognizerFactory
 import ai.closepaw.app.shouldCapsuleOverlayBeTouchable
 import ai.closepaw.platform.OverlayTouchGate
 import ai.closepaw.ui.overlay.CapsuleStateHolder
@@ -125,10 +126,11 @@ class CapsuleOverlayHost(
 
             val capsuleContent: @androidx.compose.runtime.Composable () -> Unit = {
                 val overlayContext = LocalContext.current
-                val voiceDeps = remember {
+                val voiceScope = rememberCoroutineScope()
+                val voiceDeps = remember(voiceScope) {
                     val appCtx = service.applicationContext
                     object : VoiceMicDeps {
-                        override val factory = AndroidRecognizerFactory(appCtx)
+                        override val factory = ChatGptRecognizerFactory(appCtx, voiceScope)
                         override val activity: android.app.Activity? = null
                         override fun isPermissionGranted(): Boolean =
                             androidx.core.content.ContextCompat.checkSelfPermission(

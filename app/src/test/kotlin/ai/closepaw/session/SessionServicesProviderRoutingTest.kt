@@ -39,7 +39,7 @@ class SessionServicesProviderRoutingTest {
   }
 
   @Test
-  fun `openrouter model works without openai key`() {
+  fun `openrouter credentials cannot enable a non subscription session`() {
     val context = contextWithCatalog()
     installFixtureCatalogRepo(context)
     val authStore = AuthStore(context, prefsProvider = { FakeSharedPreferences() })
@@ -51,7 +51,7 @@ class SessionServicesProviderRoutingTest {
                     llm = SessionLlmConfig(backendType = LLMBackendType.OPENAI),
                     mainModel = "glm-4.7"
             )
-    val services =
+    assertThrows(IllegalArgumentException::class.java) {
             SessionServices.create(
                     config = config,
                     platform = FakeAndroidPlatform(),
@@ -65,7 +65,7 @@ class SessionServicesProviderRoutingTest {
                     appClassifier = AppClassifier(emptyMap())
             )
 
-    assertThat(services.llmClient).isInstanceOf(ChatCompletionClient::class.java)
+    }
   }
 
   @Test

@@ -75,7 +75,7 @@ private fun SignedOutContent(onStartOAuth: () -> Unit) {
         onClick = onStartOAuth,
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text("Sign in with OpenAI")
+        Text("Sign in with ChatGPT")
     }
 }
 

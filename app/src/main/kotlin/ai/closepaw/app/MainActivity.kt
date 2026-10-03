@@ -160,6 +160,8 @@ class MainActivity : ComponentActivity() {
         settingsState = AppSettingsState.create(applicationContext)
         settingsState.load()
         modelCatalogRepo = ModelCatalogRepositoryHolder.get(applicationContext)
+        settingsState.updateModel(ai.closepaw.llm.SubscriptionPolicy.modelFor(settingsState.selectedModel, modelCatalog))
+        settingsState.updateBackend(LLMBackendType.OPENAI)
         modelLoadingStatusHolder = ModelLoadingStatusHolder(applicationContext, lifecycleScope, settingsState)
 
         // Onboarding: migrate + check completion

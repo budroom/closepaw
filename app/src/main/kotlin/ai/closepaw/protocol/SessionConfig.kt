@@ -34,7 +34,7 @@ data class SessionConfig(
          * Primary model name (key in llm_models.json) for the main agent.
          * Subagents inherit this model — there is no separate subagent model.
          */
-        val mainModel: String = "glm-5",
+        val mainModel: String = ai.closepaw.llm.SubscriptionPolicy.DEFAULT_MODEL,
         /** Platform mode: real screen (accessibility) or virtual display (Shizuku) */
         val platformMode: PlatformMode = PlatformMode.ACCESSIBILITY,
         /** Tool names to exclude from the agent's allowed tool set (e.g. for eval) */

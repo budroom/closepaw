@@ -452,15 +452,6 @@ class OnboardingViewModel(
             markApiKeyDoneIfNeeded()
             return true
         }
-        val matched = OnboardingProvider.entries
-            .firstOrNull { authStore.has(it.llmProvider) }
-        if (matched != null) {
-            authMethod = ApiKeyAuthMethod.MANUAL
-            selectedProvider = matched
-            stepState = ApiKeyStepState.Valid("")
-            markApiKeyDoneIfNeeded()
-            return true
-        }
         return false
     }
 

@@ -174,78 +174,20 @@ fun ApiKeyStepContent(
     onValidate: () -> Unit,
     onRetry: () -> Unit
 ) {
-    var passwordVisible by remember { mutableStateOf(false) }
-    val currentKey = when (state) {
-        is ApiKeyStepState.Editing -> state.key
-        is ApiKeyStepState.Validating -> state.key
-        is ApiKeyStepState.Invalid -> state.key
-        is ApiKeyStepState.TransientError -> state.key
-        is ApiKeyStepState.Valid -> state.key
-        else -> ""
-    }
-
     Column(modifier = Modifier.fillMaxWidth()) {
-        Icon(
-            imageVector = Icons.Outlined.Key,
-            contentDescription = null,
-            modifier = Modifier.size(48.dp),
-            tint = MaterialTheme.colorScheme.secondary
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
         Text(
-            text = "Choose your provider to connect.",
+            text = "Connect your ChatGPT/Codex subscription.",
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-
         Spacer(modifier = Modifier.height(16.dp))
-
-        // Provider picker
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            OnboardingProvider.visibleInUi.forEach { provider ->
-                FilterChip(
-                    selected = selectedProvider == provider,
-                    onClick = { onProviderSelected(provider) },
-                    label = { Text(provider.label) },
-                    enabled = state !is ApiKeyStepState.Validating
-                            && state !is ApiKeyStepState.Valid
-                            && state !is ApiKeyStepState.OAuthInProgress
-                            && state !is ApiKeyStepState.OAuthFinishing
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Show OAuth or manual content based on auth method + provider
-        if (selectedProvider == OnboardingProvider.OPENAI_API && authMethod == ApiKeyAuthMethod.OAUTH) {
-            OAuthContent(
-                state = state,
-                onStartOAuth = onStartOAuth,
-                onCancelOAuth = onCancelOAuth,
-                onContinue = onContinue,
-                onSwitchToManual = { onAuthMethodSelected(ApiKeyAuthMethod.MANUAL) },
-                onRetry = { onStartOAuth() }
-            )
-        } else {
-            ManualApiKeyContent(
-                state = state,
-                currentKey = currentKey,
-                passwordVisible = passwordVisible,
-                onPasswordVisibilityToggle = { passwordVisible = !passwordVisible },
-                onKeyChanged = onKeyChanged,
-                onValidate = onValidate,
-                onRetry = onRetry,
-                showSwitchToOAuth = selectedProvider == OnboardingProvider.OPENAI_API,
-                onSwitchToOAuth = { onAuthMethodSelected(ApiKeyAuthMethod.OAUTH) }
-            )
-        }
+        OAuthContent(
+            state = state,
+            onStartOAuth = onStartOAuth,
+            onCancelOAuth = onCancelOAuth,
+            onContinue = onContinue,
+            onRetry = onStartOAuth,
+        )
     }
 }
 
@@ -255,7 +197,6 @@ private fun ColumnScope.OAuthContent(
     onStartOAuth: () -> Unit,
     onCancelOAuth: () -> Unit,
     onContinue: () -> Unit,
-    onSwitchToManual: () -> Unit,
     onRetry: () -> Unit
 ) {
     when (state) {
@@ -272,15 +213,9 @@ private fun ColumnScope.OAuthContent(
                 onClick = onStartOAuth,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Sign in with OpenAI")
+                Text("Sign in with ChatGPT")
             }
 
-            TextButton(
-                onClick = onSwitchToManual,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-            ) {
-                Text("or enter API key manually")
-            }
         }
 
         is ApiKeyStepState.OAuthInProgress -> {
@@ -378,12 +313,6 @@ private fun ColumnScope.OAuthContent(
                 Text("Try Again")
             }
 
-            TextButton(
-                onClick = onSwitchToManual,
-                modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-            ) {
-                Text("or enter API key manually")
-            }
         }
 
         else -> {

@@ -1,5 +1,25 @@
 # LLM Integration
 
+## Subscription-only application
+
+ClosePaw setup and settings expose only ChatGPT/Codex sign-in. The default is
+`gpt-5.5-codex`; an existing API model selection is mapped to its subscription
+variant where available. The client factory rejects all non-Codex providers, and
+session bootstrap rejects the local backend. Legacy provider/catalog helpers are
+retained internally for compatibility but are not available as app choices.
+
+Session history is stored in app-private device files with Android backup disabled.
+History file operations reject paths and symlinks outside that directory. Signing in
+does not list or import ChatGPT conversations or Codex projects; response requests
+send only local input with `store=false`, without remote conversation/project IDs.
+This is the subscription context boundary; Android automation tools still operate
+on the device UI according to the user's task and permissions.
+
+OpenAI controls subscription usage limits. ClosePaw has no endpoint or control to
+reset them. Signing out, starting a session, or deleting local history does not reset
+account limits. Voice input uses the same sign-in; see [Voice Input](../ui/capsule/voice.md).
+
+
 > LLM clients, model catalog, streaming, and retry infrastructure.
 > Last updated: 2026-05-26 (added OPENAI_CODEX seed alias for gpt-5.5)
 
